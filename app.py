@@ -11,9 +11,9 @@ import discord
 app = Flask(__name__)
 
 # ========== НАСТРОЙКИ БОТОВ ==========
-TOKEN_BOT1 = os.getenv('BOT1_TOKEN')
-TOKEN_BOT2 = os.getenv('BOT2_TOKEN')
-TOKEN_BOT3 = os.getenv('BOT3_TOKEN')
+TOKEN_BOT1 = os.getenv('DISCORD_BOT_TOKEN')
+TOKEN_BOT2 = os.getenv('DISCORD_BOT_TOKEN1')
+TOKEN_BOT3 = os.getenv('DISCORD_BOT_TOKEN2')
 SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
 
 app.config['SECRET_KEY'] = SECRET_KEY
