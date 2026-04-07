@@ -3,8 +3,184 @@ import sqlite3
 import json
 from datetime import datetime
 import os
+import threading
+import asyncio
+from discord.ext import commands
+import discord
 
 app = Flask(__name__)
+
+# ========== НАСТРОЙКИ БОТОВ ==========
+TOKEN_BOT1 = os.getenv('BOT1_TOKEN')
+TOKEN_BOT2 = os.getenv('BOT2_TOKEN')
+TOKEN_BOT3 = os.getenv('BOT3_TOKEN')
+SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
+
+app.config['SECRET_KEY'] = SECRET_KEY
+
+# Отключаем voice модуль для discord.py
+os.environ["DISCORD_INSTANCE_NO_VOICE"] = "true"
+
+# ========== СОЗДАНИЕ БОТОВ ==========
+# Бот 1 - с префиксом '!'
+bot1 = commands.Bot(command_prefix='!', intents=discord.Intents.default())
+
+# Бот 2 - с префиксом '?'
+bot2 = commands.Bot(command_prefix='?', intents=discord.Intents.default())
+
+# Бот 3 - с префиксом '.'
+bot3 = commands.Bot(command_prefix='.', intents=discord.Intents.default())
+
+# ========== КОМАНДЫ ДЛЯ БОТОВ ==========
+
+# БОТ 1 (префикс !)
+@bot1.command()
+async def hello(ctx):
+    await ctx.send(f"Привет! Я бот 1 на Render! Используй !help для списка команд.")
+
+@bot1.command()
+async def tier(ctx, username=None):
+    """Проверить тир игрока по нику"""
+    if not username:
+        await ctx.send("❌ Использование: `!tier <никнейм>`")
+        return
+    
+    conn = sqlite3.connect(DB_NETHEROP)
+    c = conn.cursor()
+    c.execute("SELECT tier, sub_tier FROM players WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        tier, sub_tier = result
+        await ctx.send(f"📊 **{username}** - Тир: {tier} ({sub_tier})")
+    else:
+        await ctx.send(f"❌ Игрок **{username}** не найден в базе NetherOP")
+
+@bot1.command()
+async def top(ctx, limit=10):
+    """Топ игроков по очкам"""
+    conn = sqlite3.connect(DB_NETHEROP)
+    c = conn.cursor()
+    c.execute("SELECT username, sub_tier FROM players LIMIT ?", (min(limit, 25),))
+    players = c.fetchall()
+    conn.close()
+    
+    if not players:
+        await ctx.send("❌ Нет игроков в базе")
+        return
+    
+    result = "🏆 **Топ игроков NetherOP:**\n"
+    for i, (username, sub_tier) in enumerate(players[:10], 1):
+        points = SUB_TIER_POINTS_NETHEROP.get(sub_tier, 0)
+        result += f"{i}. {username} - {sub_tier} ({points} очков)\n"
+    
+    await ctx.send(result)
+
+@bot1.event
+async def on_ready():
+    print(f'✅ Бот 1 запущен: {bot1.user} (ID: {bot1.user.id})')
+    await bot1.change_presence(activity=discord.Game(name="!help | ARENATIERS"))
+
+# БОТ 2 (префикс ?)
+@bot2.command()
+async def ping(ctx):
+    await ctx.send(f"Понг! 🏓 Задержка: {round(bot2.latency * 1000)}ms")
+
+@bot2.command()
+async def beast(ctx, username=None):
+    """Проверить тир игрока на Beast сервере"""
+    if not username:
+        await ctx.send("❌ Использование: `?beast <никнейм>`")
+        return
+    
+    conn = sqlite3.connect(DB_BEAST)
+    c = conn.cursor()
+    c.execute("SELECT tier, sub_tier FROM players WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        tier, sub_tier = result
+        await ctx.send(f"📊 **{username}** на Beast - Тир: {tier} ({sub_tier})")
+    else:
+        await ctx.send(f"❌ Игрок **{username}** не найден в базе Beast")
+
+@bot2.command()
+async def stats(ctx):
+    """Статистика сервера"""
+    conn = sqlite3.connect(DB_BEAST)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM players")
+    total = c.fetchone()[0]
+    conn.close()
+    
+    await ctx.send(f"📊 **Статистика Beast:**\n👥 Всего игроков: {total}")
+
+@bot2.event
+async def on_ready():
+    print(f'✅ Бот 2 запущен: {bot2.user} (ID: {bot2.user.id})')
+    await bot2.change_presence(activity=discord.Game(name="?help | Beast Server"))
+
+# БОТ 3 (префикс .)
+@bot3.command()
+async def info(ctx):
+    embed = discord.Embed(
+        title="🤖 ARENATIERS Боты",
+        description="Информация о наших ботах",
+        color=discord.Color.purple()
+    )
+    embed.add_field(name="Бот 1 (NetherOP)", value="Префикс: `!`\nКоманды: `!tier`, `!top`, `!hello`", inline=False)
+    embed.add_field(name="Бот 2 (Beast)", value="Префикс: `?`\nКоманды: `?beast`, `?ping`, `?stats`", inline=False)
+    embed.add_field(name="Бот 3 (Общий)", value="Префикс: `.`\nКоманда: `.info`", inline=False)
+    embed.set_footer(text="ARENATIERS | Рейтинговая система")
+    
+    await ctx.send(embed=embed)
+
+@bot3.command()
+async def website(ctx):
+    """Ссылка на сайт"""
+    site_url = os.getenv('RENDER_EXTERNAL_URL', 'https://ваш-сайт.onrender.com')
+    await ctx.send(f"🌐 Наш сайт: {site_url}")
+
+@bot3.event
+async def on_ready():
+    print(f'✅ Бот 3 запущен: {bot3.user} (ID: {bot3.user.id})')
+    await bot3.change_presence(activity=discord.Game(name=".info | ARENATIERS"))
+
+# ========== ЗАПУСК БОТОВ В ОТДЕЛЬНЫХ ПОТОКАХ ==========
+def run_bot(bot_instance, token, bot_name):
+    """Запускает бота в отдельном потоке"""
+    if not token:
+        print(f"⚠️ Токен для {bot_name} не найден! Добавьте переменную окружения.")
+        return
+    
+    try:
+        print(f"🚀 Запуск {bot_name}...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(bot_instance.start(token))
+    except Exception as e:
+        print(f"❌ Ошибка при запуске {bot_name}: {e}")
+    finally:
+        loop.close()
+
+# Запускаем ботов в фоновых потоках (только если токены есть)
+if TOKEN_BOT1:
+    threading.Thread(target=run_bot, args=(bot1, TOKEN_BOT1, "Бота 1"), daemon=True).start()
+else:
+    print("⚠️ BOT1_TOKEN не задан в Environment Variables")
+
+if TOKEN_BOT2:
+    threading.Thread(target=run_bot, args=(bot2, TOKEN_BOT2, "Бота 2"), daemon=True).start()
+else:
+    print("⚠️ BOT2_TOKEN не задан в Environment Variables")
+
+if TOKEN_BOT3:
+    threading.Thread(target=run_bot, args=(bot3, TOKEN_BOT3, "Бота 3"), daemon=True).start()
+else:
+    print("⚠️ BOT3_TOKEN не задан в Environment Variables")
+
 
 # Базы данных для двух серверов
 DB_NETHEROP = "netherop_tiers.db"
