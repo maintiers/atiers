@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Базы данных (ваши .db файлы)
+*.db
+*.sqlite
+*.sqlite3
+
+# Секреты и токены
+.env
+secrets.json
+config.json
+
+# Discord боты - локальные данные
+queue.json
+active_testers.json
+tickets.json
+tester_stats.json
+qualified_cooldowns.json
+high_cooldowns.json
+support_tickets.json
+staff_applications.json
+message_ids.json
+user_data.json
+
+# Replit специфичные файлы
+.replit
+replit.nix
+.upm/
+
+# Виртуальное окружение
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.bak
+
+# Render / деплой
+.DS_Store
+*.pid
